@@ -13,9 +13,11 @@ import gc
 from app.handlers.context_handler import ContextPreparer
 from app.utils.system_prompt import *
 
+from .llm_interface import LLMInterface
+
 logger = logging.getLogger(__name__)
 
-class ParallelModelPool:
+class ParallelModelPool(LLMInterface):
     """
     Manages a pool of model instances for parallel inference across multiple CUDA devices.
     Utilizes an asyncio.Queue to handle request queuing when all models are busy.
@@ -37,7 +39,7 @@ class ParallelModelPool:
             devices (Optional[List[str]]): Specific devices to load models onto. 
                                            If None, all available CUDA devices are used.
         """
-        self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+        self._tokenizer = AutoTokenizer.from_pretrained(model_path)
         self.queue = asyncio.Queue(maxsize=num_instances)
         self.model_instances = []
 
@@ -75,6 +77,21 @@ class ParallelModelPool:
             except Exception as e:
                 logger.error(f"Failed to load model instance {i} on {device}: {e}")
 
+    @property
+    def tokenizer(self):
+        """
+        Returns the tokenizer instance.
+        """
+        return self._tokenizer
+
+    @property
+    def device(self):
+        """
+        Since ParallelModelPool manages multiple devices, 
+        you can return a representative string or handle it differently.
+        """
+        return "pool"  # Indicates that multiple devices are managed
+    
     async def get_free_model(self, timeout: Optional[float] = None):
         """
         Retrieves a free model instance from the queue.
@@ -106,6 +123,54 @@ class ParallelModelPool:
         """
         await self.queue.put(model_instance)
         logger.debug(f"Released model on {model_instance['device']} back to the queue")
+
+    async def generate_function_call(
+        self, 
+        messages: List[Dict[str, str]], 
+        tools: List[Any]
+    ) -> str:
+        """
+        Generate a response using the model pool.
+        
+        :param messages: The messages to send to the LLM.
+        :param max_new_tokens: The maximum number of tokens to generate.
+        :return: The generated response as a string.
+        """
+        
+        # Acquire a free model
+        model_instance = await self.get_free_model(timeout=30)
+        tool_response = []
+        chart_data = []
+          # Adjust timeout as needed
+        try:
+            model = model_instance['model']
+            device = model_instance['device']
+            logger.info(f"tools: {tools}")
+            inputs = self._tokenizer.apply_chat_template(
+                messages,
+                tools=tools,
+                add_generation_prompt=True,
+                return_dict=True,
+                return_tensors="pt"
+            )
+            inputs = {k: v.to(device) for k, v in inputs.items()}
+            out = model.generate(
+                **inputs,
+                max_new_tokens=128
+                # eos_token_id=self.tokenizer.eos_token_id,
+                # pad_token_id=self.tokenizer.eos_token_id
+            )
+            input_string = self.tokenizer.decode(out[0][len(inputs["input_ids"][0]):])
+            # Extract only the newly generated part
+            logger.info(f"Generated input_string: {input_string}")
+            return input_string
+        
+        except Exception as e:
+            logger.error(f"Error during generation: {e}")
+            raise
+        finally:
+            await self.release_model(model_instance)
+
 
     async def generate_text_stream(
         self, 
@@ -272,7 +337,7 @@ class ParallelModelPool:
                 next_text = await loop.run_in_executor(None, get_next_chunk)
                 if next_text is None:
                     break
-                yield f"data: {next_text}\n\n"  # SSE format
+                yield next_text # SSE format
                 token_count += 1
 
             # Ensure the generation thread has finished
@@ -295,15 +360,16 @@ class ParallelModelPool:
 
             # Create metrics dict
             metrics = {
-                "metrics": {
+                
                     "latency": latency,
                     "tokens": token_count,
-                    "tokens_per_second": tokens_per_second
-                }
+                    "tps": tokens_per_second
+                
             }
 
             # Send metrics as a JSON string
-            yield f"data: {json.dumps(metrics)}\n\n"
+            yield json.dumps({"metrics": metrics})
+
         except asyncio.CancelledError:
             logger.info("Client disconnected. Releasing model instance.")
             raise  # Ensures the finally block executes
@@ -316,3 +382,55 @@ class ParallelModelPool:
         finally:
             # Release the model instance back to the queue regardless of success or failure
             await self.release_model(model_instance)
+    async def generate(
+        self, 
+        messages: List[Dict[str, str]], 
+        max_new_tokens: int = 128
+    ) -> str:
+        """
+        Generate a response using the model pool.
+        
+        :param messages: The messages to send to the LLM.
+        :param max_new_tokens: The maximum number of tokens to generate.
+        :return: The generated response as a string.
+        """
+        # Convert messages to prompt
+        prompt = self._messages_to_prompt(messages)
+        
+        # Acquire a free model
+        model_instance = await self.get_free_model(timeout=30)  # Adjust timeout as needed
+        try:
+            model = model_instance['model']
+            device = model_instance['device']
+            
+            inputs = self._tokenizer(prompt, return_tensors="pt").to(device)
+            output = model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                eos_token_id=self._tokenizer.eos_token_id,
+                pad_token_id=self._tokenizer.eos_token_id
+            )
+            response = self._tokenizer.decode(output[0], skip_special_tokens=True)
+            # Extract only the newly generated part
+            generated_response = response[len(prompt):].strip()
+            return generated_response
+        except Exception as e:
+            logger.error(f"Error during generation: {e}")
+            raise
+        finally:
+            await self.release_model(model_instance)
+    
+    def _messages_to_prompt(self, messages: List[Dict[str, str]]) -> str:
+        """
+        Convert messages to a single prompt string.
+        
+        :param messages: List of messages with roles and content.
+        :return: A concatenated prompt string.
+        """
+        prompt = ""
+        for message in messages:
+            role = message.get("role", "")
+            content = message.get("content", "")
+            prompt += f"{role}: {content}\n"
+        prompt += "assistant:"
+        return prompt
