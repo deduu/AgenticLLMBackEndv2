@@ -9,9 +9,12 @@ import threading
 import time as time_module
 import json
 import gc
-
+from app.utils.message_utils import extract_tool_calls, call_function, function_registry
 from app.handlers.context_handler import ContextPreparer
+from app.services.message_preparer import MessagePreparer
+from app.handlers.response_handler import ResponseHandler
 from app.utils.system_prompt import *
+from app.utils.exceptions import ToolExecutionError
 
 from .llm_interface import LLMInterface
 
@@ -42,6 +45,9 @@ class ParallelModelPool(LLMInterface):
         self._tokenizer = AutoTokenizer.from_pretrained(model_path)
         self.queue = asyncio.Queue(maxsize=num_instances)
         self.model_instances = []
+        self.message_preparer = MessagePreparer()
+        # self.tool_executor =  ToolCallExtractor(tools=tools)
+        self.response_handler = ResponseHandler()
 
         # Detect available CUDA devices if not specified
         if devices is None:
@@ -199,11 +205,7 @@ class ParallelModelPool(LLMInterface):
         """
         model_instance = await self.get_free_model(timeout=timeout)
         try:
-            # messages = [
-            #     {"role": "system", "content": "You are a helpful assistant."}, 
-            #     *(history_messages or []), 
-            #     {"role": "user", "content": query}
-            # ]
+           
             history_messages = history_messages if history_messages else ""
    
 
@@ -382,6 +384,7 @@ class ParallelModelPool(LLMInterface):
         finally:
             # Release the model instance back to the queue regardless of success or failure
             await self.release_model(model_instance)
+
     async def generate(
         self, 
         messages: List[Dict[str, str]], 
@@ -434,3 +437,98 @@ class ParallelModelPool(LLMInterface):
             prompt += f"{role}: {content}\n"
         prompt += "assistant:"
         return prompt
+    
+    async def process_user_query(
+        self, 
+        messages: List[Dict[str, str]], 
+        tools: List[Any]
+    ) -> str:
+        """
+        Process the user query by interacting with the LLM and executing tool calls.
+
+        :param messages: The prepared messages to send to the LLM.
+        :param tools: The list of tools available for execution.
+        :return: The final response from the LLM.
+        """
+        
+        tool_response = []
+        chart_data = []
+
+        # logger.info(f"Message input to LLM: {messages}")
+        
+        # Generate initial response from LLM
+        try:
+            initial_response = await self.generate_function_call(messages = messages, tools = function_registry.values())
+        except Exception as e:
+            logger.error(f"Error generating initial response: {e}")
+            raise
+
+        logger.info(f"Initial LLM response: {initial_response}")
+
+        tool_calls = extract_tool_calls(initial_response)
+
+        logger.info(f"Extracted tool calls: {tool_calls}")
+
+        for idx, tool_call in enumerate(tool_calls):
+            try:
+                function_name, result = await call_function(tool_call)
+            
+
+                messages.append({
+                    "role": "assistant", 
+                    "content": "", 
+                    "tool_calls": [{"type": "function", "function": tool_call}]
+                })
+
+                if not result:
+                    error_message = f"Empty result from {function_name}"
+                    messages.append({"role": "assistant", "content": error_message})
+                    logger.warning(f"Tool Call {idx} Error: {error_message}")
+                    continue
+
+                data = {
+                    "chartType": result.get("chartType", ""),
+                    "data": result.get("data", []),
+                    "config": result.get("config", {}),
+                    "chartTitle": result.get("chartTitle", "")
+                }
+                logger.info(f"Tool result: {result}")
+
+                chart_data.append(data)
+
+                has_chart = "config" in result
+
+                if not has_chart:
+                    messages.append({"role": "ipython", "name": function_name, "content": result})
+                else:
+                    messages.append({"role": "ipython", "name": function_name, "content": result.get("rawData", {})})
+
+            except ToolExecutionError as te:
+                messages.append({"role": "assistant", "content": str(te)})
+                logger.error(f"Tool Call {idx} Error: {str(te)}")
+            except Exception as e:
+                error_message = f"Unexpected error: {str(e)}"
+                messages.append({"role": "assistant", "content": error_message})
+                logger.error(f"Tool Call {idx} Unexpected Error: {error_message}")
+
+        logger.info(f"Messages before final response generation: {messages}")
+
+        # Handle message transformations
+        messages = self.response_handler.handle_messages(messages)
+
+        # Generate final response from LLM
+        try:
+            final_response = await self.generate(messages, max_new_tokens=512)
+        except Exception as e:
+            logger.error(f"Error generating final response: {e}")
+            raise
+
+        tool_response.append({
+            "FunctionName": tool_calls,
+            "chartData": chart_data,
+            "Output": final_response.strip().replace('<|eot_id|>', '')
+        })
+        logger.info(f"Final tool_response: {tool_response}")
+
+        return tool_response
+ 

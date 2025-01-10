@@ -1,0 +1,10 @@
+models:
+  # - model_type: "qwen"
+  #   model_path: "Qwen/Qwen2.5-Coder-32B-Instruct"
+  #   device: "cuda:0"
+  #   dtype: "float16"
+  
+  - model_type: "llamma"
+    model_path: "meta-llama/Llama-3.1-8B-Instruct"
+    device: "cuda:0"
+    dtype: "float16"
