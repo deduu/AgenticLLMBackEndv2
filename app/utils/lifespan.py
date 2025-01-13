@@ -5,12 +5,13 @@ from fastapi import FastAPI
 
 from app.dependencies import model_pool
 from app.caller.function_caller import FunctionCaller
+from app.crud.employee import initialize_employee_database_sessions
 from ..utils.message_utils import function_registry
 
 logger = logging.getLogger(__name__)
 
 async def setup_function_call():
-
+    await initialize_employee_database_sessions()
     function_caller = FunctionCaller(llm=model_pool, tools=function_registry.values())
 
     return function_caller

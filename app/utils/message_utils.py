@@ -4,6 +4,7 @@ import datetime
 import asyncio
 from app.services.tool_executor import ToolCallExtractor
 from app.functions.basic_functions import get_current_date
+from app.functions.employee_functions import get_query_employee_data
     
 def rename_parameters_to_arguments(messages: List[Dict[str, str]], serialize_arguments=False) -> List[Dict[str, str]]:
     """
@@ -53,6 +54,7 @@ def extract_tool_calls(input_string: str) -> List[Dict[str, str]]:
 function_registry = {
     
     "get_current_date": get_current_date,
+    "get_query_employee_data": get_query_employee_data,
     
     # "google_search": google_search
     # "action_price_bitcoin_data": action_price_bitcoin_data

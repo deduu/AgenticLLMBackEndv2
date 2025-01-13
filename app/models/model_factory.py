@@ -15,13 +15,15 @@ class ModelFactory:
             return QwenModel(
                 model_path=config["model_path"],
                 device=config["device"],
-                dtype=config.get("dtype", "float16")
+                dtype=config.get("dtype", "float16"),
+                quantization=config.get("quantization", "4bit")
             )
         elif model_type == "llamma":
             return llammaModel(
                 model_path=config["model_path"],
                 device=config["device"],
-                dtype=config.get("dtype", "float16")
+                dtype=config.get("dtype", "float16"),
+                quantization=config.get("quantization", "4bit")
             )
         else:
             raise ValueError(f"Unsupported model type: {model_type}")

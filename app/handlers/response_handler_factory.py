@@ -1,5 +1,6 @@
 
 from .llamma_response_handler import llamma_Response_Handler
+from .qwen_response_handler import Qwen_Response_Handler
 from .base_response_handler import BaseResponseHandler
 
 class ResponseHandlerFactory:
@@ -7,5 +8,7 @@ class ResponseHandlerFactory:
     def get_response_handler(model_type: str) -> BaseResponseHandler:
         if model_type == "llamma":
             return llamma_Response_Handler()
+        elif model_type == "qwen":
+            return Qwen_Response_Handler()
         else:
             raise ValueError(f"Unsupported model type for ResponseHandler: {model_type}")

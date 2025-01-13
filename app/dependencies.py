@@ -17,6 +17,7 @@ from app.config_loader import load_config
 
 config_path = "./config.yaml"
 model_configs = load_config(config_path)
+print(f"Model configs: {model_configs}")
 
 model_pool = ParallelModelPool(model_configs=model_configs, num_instances=1)
 

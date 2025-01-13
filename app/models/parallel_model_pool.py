@@ -74,6 +74,7 @@ class ParallelModelPool():
 
                 # Assign tool manager
                 self.tool_managers[id(model_instance)] = ToolManagerFactory.get_tool_manager(model_type)
+                logger.info(f"model: {self.tool_managers[id(model_instance)]}")
                 logger.info(f"Loaded and enqueued {config.get('model_path')} model on {config['device']}")
             except Exception as e:
                 logger.error(f"Failed to load model {config.get('model_path')} of type {model_type}: {e}")
@@ -210,6 +211,7 @@ class ParallelModelPool():
         """
         model_instance = await self.get_free_model(timeout=30)
         try:
+            logger.info(f"model_instance: {model_instance}")
             tool_manager = self.tool_managers.get(id(model_instance))
             logger.info(f"tool_manager: {tool_manager}")
             if not tool_manager:

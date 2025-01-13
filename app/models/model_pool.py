@@ -511,7 +511,7 @@ class ParallelModelPool(LLMInterface):
                 messages.append({"role": "assistant", "content": error_message})
                 logger.error(f"Tool Call {idx} Unexpected Error: {error_message}")
 
-        logger.info(f"Messages before final response generation: {messages}")
+        logger.info(f": {messages}")
 
         # Handle message transformations
         messages = self.response_handler.handle_messages(messages)

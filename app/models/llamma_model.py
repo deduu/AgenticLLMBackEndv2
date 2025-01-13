@@ -20,9 +20,35 @@ class llammaModel(BaseModel):
     Implementation for llamma Instruct model.
     """
     
-    def __init__(self, model_path: str, device: str, dtype=torch.float16, system_prompt:str=None):
-        super().__init__(model_path, device, system_prompt=system_prompt)
+    def __init__(self, model_path: str, device: str, dtype=torch.float16, system_prompt:str=None, quantization: Optional[str] = None):
+        super().__init__(model_path, device, system_prompt=system_prompt, dtype=dtype, quantization=quantization)   
+
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
+        self.model = self.load_model()
+    def load_model(self):
+        # Check quantization type and load the model accordingly
+        if self.quantization == "4bit":
+            model = AutoModelForCausalLM.from_pretrained(
+                self.model_path,
+                torch_dtype=torch.float16 if self.dtype == "float16" else torch.float32,
+                device_map="auto",
+                load_in_4bit=True
+            )
+        elif self.quantization == "8bit":
+            model = AutoModelForCausalLM.from_pretrained(
+                self.model_path,
+                torch_dtype=torch.float16 if self.dtype == "float16" else torch.float32,
+                device_map="auto",
+                load_in_8bit=True
+            )
+        else:
+            model = AutoModelForCausalLM.from_pretrained(
+                self.model_path,
+                torch_dtype=torch.float16 if self.dtype == "float16" else torch.float32,
+                device_map="auto"
+            )
+        logger.info(f"Loaded {self.model_path} model on {self.device}")
+        return model
         self.model = AutoModelForCausalLM.from_pretrained(
             model_path, 
             torch_dtype=dtype
@@ -253,17 +279,26 @@ class llammaModel(BaseModel):
         
     
     async def generate_text(self, messages: List[Dict[str, str]], max_new_tokens: int) -> str:
-        
-        input_ids = self.tokenizer.apply_chat_template(messages,add_generation_prompt=True, return_dict=True, return_tensors="pt").to(self.device)
-        inputs = {k: v.to(self.device) for k, v in input_ids.items()}
-        output = self.model.generate(
-            **inputs,
-            max_new_tokens=max_new_tokens,
-            eos_token_id=self.tokenizer.eos_token_id,
-            pad_token_id=self.tokenizer.eos_token_id
-        )
-        generated_response = self.tokenizer.decode(output[0][len(inputs["input_ids"][0]):]).strip().replace('<|eot_id|>', '')
        
-        logger.info(f"llamma generated text: {generated_response}")
-        return generated_response
+        input_ids = self.tokenizer.apply_chat_template(messages,add_generation_prompt=True, return_dict=True, return_tensors="pt")
+        inputs = {k: v.to(self.device) for k, v in input_ids.items()}
+        try:
+            with torch.no_grad():
+                output = self.model.generate(
+                    **inputs,
+                    max_new_tokens=max_new_tokens,
+                    top_k=50,
+                    top_p=0.95,
+                    # eos_token_id=self.tokenizer.eos_token_id,
+                    # pad_token_id=self.tokenizer.eos_token_id
+                )
+            generated_response = self.tokenizer.decode(output[0][len(inputs["input_ids"][0]):]).strip().replace('<|eot_id|>', '')
+       
+            logger.info(f"llamma generated text: {generated_response}")
+            return generated_response
+        finally:
+            del input_ids
+            del inputs  
+            gc.collect()
+            torch.cuda.empty_cache()
     
