@@ -4,6 +4,4 @@ __pycache__
 .vscode
 eval/
 finetuning/
-
-test*.py
 user_data/
