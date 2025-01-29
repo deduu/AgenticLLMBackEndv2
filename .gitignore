@@ -5,3 +5,4 @@ __pycache__
 eval/
 finetuning/
 user_data/
+testCoTDataGen.py
