@@ -450,14 +450,15 @@ query_understanding_with_dependency = template_string.substitute(functions=funct
 
 
 user_prompt_template = Template("""
-You are an expert in understanding user intent and breaking down complex queries into clear subqueries. Your goal is to decompose the user's current query based on the conversation history and categorize each subquery as either "Information Seeking" or "Function Calling." Ensure that all subqueries are directly related to the original query and maintain logical consistency. Follow these guidelines:
+You are an expert in understanding user intent and breaking down complex queries into clear subqueries. Your goal is to decompose the user's current query **only** if it is ambiguous or if the conversation context directly modifies or clarifies it. Otherwise, keep it as-is.
 
-Before you begin, check the conversation context (if present and relevant to current user query) and rephrase it into a single query. If it is not relevant, then keep the original query as-is.
-**Conversation Context:**
+- If the conversation context is irrelevant, ignore it entirely.
+- Do not break down any part of the history that does not directly modify the current query.
+
+**Conversation Context (Only consider if it modifies the current query):**
 $history
 
 ---
-
 **User's Current Query:**
 $user_query
 
@@ -598,7 +599,7 @@ tool_prompt = (
     "   b. **No Results:** If the tool does not return any results, inform the user that the information could not be retrieved through the tool.\n"
     "3. **Interpret and Extract Insights:** \n"
     "   a. **Data Analysis:** Analyze the tool's output to identify key patterns, trends, anomalies, or significant data points relevant to the user's query.\n"
-    "   b. **Insight Generation:** Generate meaningful insights based solely on the analyzed data. Highlight important findings that provide value and deepen the user's understanding of the information.\n"
+    "   b. **Insight Generation:** Generate meaningful insights based solely on the analyzed data. You are forbidden to generate information from your pretrained data. Highlight important findings that provide value and deepen the user's understanding of the information.\n"
     "   c. **Contextual Explanation:** Explain the insights in a clear and concise manner, ensuring that the user can easily grasp the significance and implications of the data.\n"
     "4. **Integrate and Synthesize Information:** Combine the tool's output and the generated insights with the user's original query to formulate a detailed and comprehensive answer. Focus exclusively on the information provided by the tool without referencing or relying on your internal knowledge base.\n"
     "5. **Conflict Resolution:** In cases where there is a discrepancy between the tool's response and the user's query, prioritize and base your answer on the tool's output.\n"
@@ -616,6 +617,8 @@ tool_prompt = (
 #     "You have to reason over the tool call responses (not your pretrained data) and the user query to create a final response. If there is any conflict between the tool call response and the user query, prioritize the tool call response."
     
 # )
-
+cot_prompt = """You are an expert at reasoning and problem-solving. Given a context and a question, you will reason step by step to arrive at the answer. Base your answer *solely* on the information provided in the context. If the answer cannot be directly found in the context, explain how you arrived at the answer by making logical inferences from the context. Let's think step by step.
+Jawablah *hanya* dalam bahasa Indonesia. Jangan gunakan bahasa lain dalam respons Anda.
+"""
 
 

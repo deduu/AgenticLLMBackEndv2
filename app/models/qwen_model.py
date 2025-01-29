@@ -7,50 +7,79 @@ import logging
 import threading
 import time as time_module
 import json
-import gc
+import gc, os
 import asyncio
 from fastapi import HTTPException
 
 from app.handlers.context_handler import ContextPreparer
+from app.utils.tracker import log_partial_message
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class QwenModel(BaseModel):
-    def __init__(self, model_path: str, device: str, system_prompt: str=None, dtype: str = "float16", quantization: Optional[str] = None):
-        super().__init__(model_path, device, dtype, system_prompt, quantization)
-        self.printf()
+    """
+    Implementation for qwen Instruct model.
+    """
+
+    def __init__(self, model_path: str, device: str, system_prompt: str=None, dtype: str = "float16", quantization: Optional[str] = None, cot:bool = False):
+        super().__init__(model_path, device, dtype, system_prompt, quantization, cot=cot)
+
+        self.allowed_gpus = ['cuda:4', 'cuda:5', 'cuda:6']
+
+         # Restrict `device_map="auto"` to only allowed GPUs
+        if device == "auto":
+            cuda_indices = ",".join([gpu.split(":")[-1] for gpu in self.allowed_gpus])
+            os.environ["CUDA_VISIBLE_DEVICES"] = cuda_indices  # Restrict auto to selected GPUs
+            self.device_map = "auto"  
+            self.device = "auto"
+        else:
+            self.device = torch.device(device)
+            self.device_map = {"": device}  # Explicit GPU assignment
+            print(f"Using specified device: {self.device}")
+
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
         self.model = self.load_model()
-    def printf(self):
-        logger.info("QwenModel")
+   
     def load_model(self):
         logger.info(f"Quantization: {self.quantization}")
         if self.quantization == "4bit":
             nf4_config = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_quant_type="nf4",
-                bnb_4bit_use_double_quant=True,
+                bnb_4bit_use_double_quant=False,
                 bnb_4bit_compute_dtype=torch.bfloat16
                 )
             logger.info(f"Loading {self.model_path} model with 4-bit quantization")
             model = AutoModelForCausalLM.from_pretrained(
                 self.model_path,
-                quantization_config=nf4_config
+                quantization_config=nf4_config,
+                device_map=self.device_map # Assign model to specific GPU
             )
         elif self.quantization == "8bit":
             model = AutoModelForCausalLM.from_pretrained(
                 self.model_path,
                 torch_dtype=torch.float16 if self.dtype == "float16" else torch.float32,
-                device_map="auto",
+                device_map=self.device_map,
                 load_in_8bit=True
             )
         else:
             # Full-precision model, manually move to the specified device
-            model = AutoModelForCausalLM.from_pretrained(
-                self.model_path,
-                torch_dtype=torch.float16 if self.dtype == "float16" else torch.float32
-            ).to(self.device)
+        
+            logger.info(f"Loading {self.model_path} model in FP16/FP32")
+            
+            if self.device_map == "auto":
+                # do not call .to("auto"), let HF handle distribution
+                model = AutoModelForCausalLM.from_pretrained(
+                    self.model_path,
+                    torch_dtype=torch.float16 if self.dtype == "float16" else torch.float32,
+                    device_map="auto"
+                )
+            else:
+                model = AutoModelForCausalLM.from_pretrained(
+                    self.model_path,
+                    torch_dtype=torch.float16 if self.dtype == "float16" else torch.float32
+                ).to(self.device)
         logger.info(f"Loaded {self.model_path} model on {self.device}")
         return model
     
@@ -107,7 +136,8 @@ class QwenModel(BaseModel):
             context_preparer = ContextPreparer()
             context_str = context_preparer.prepare_context(context)
 
-            logger.info(f"context_Str: {context_str}")
+            # logger.info(f"context_Str: {context_str}")
+            # log_partial_message(f"context_Str: {context_str}")
 
             # Prepare the user message with constraints and instructions
             user_message = f"""
@@ -190,7 +220,14 @@ class QwenModel(BaseModel):
                 return_tensors="pt", 
                 return_dict=True
             )
-            inputs = {k: v.to(self.device) for k, v in input_ids.items()}
+            if self.device_map == "auto":
+                # Leave on CPU
+                inputs = input_ids
+            else:
+                # Move to a specific GPU or CPU
+                inputs = {k: v.to(self.device) for k, v in input_ids.items()}
+
+            # inputs = {k: v.to(self.device) for k, v in input_ids.items()}
             streamer = TextIteratorStreamer(
                 self.tokenizer, 
                 skip_prompt=True, 

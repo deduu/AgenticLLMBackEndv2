@@ -1,0 +1,62 @@
+[
+  {
+    "conversations": [
+      {
+        "from": "human",
+        "value": "Siapa yang bertanggung jawab untuk memberikan persetujuan POD?"
+      },
+      {
+        "from": "gpt",
+        "value": "Langkah Penalaran:\n1. 1. Konteks membahas tentang proses persetujuan POD dalam KKS Gross Split.\n2. 2. Dalam konteks tersebut, disebutkan bahwa proses persetujuan POD merujuk kepada peraturan perundang-undangan yang berlaku.\n3. 3. Oleh karena itu, dapat disimpulkan bahwa persetujuan POD diberikan oleh instansi yang berwenang berdasarkan peraturan perundang-undangan.\n\nJawaban Akhir: Instansi yang berwenang berdasarkan peraturan perundang-undangan."
+      }
+    ]
+  },
+  {
+    "conversations": [
+      {
+        "from": "human",
+        "value": "Apa yang dapat dilakukan oleh KKKS sebelum memperoleh persetujuan POD?"
+      },
+      {
+        "from": "gpt",
+        "value": "Langkah Penalaran:\n1. 1. Konteks membahas tentang syarat dan kondisi yang harus dipenuhi oleh KKKS sebelum melakukan pekerjaan.\n2. 2. Dalam konteks tersebut, disebutkan bahwa suatu pekerjaan dapat dilaksanakan sebelum memperoleh persetujuan POD jika memenuhi kondisi dan syarat tertentu.\n3. 3. Oleh karena itu, dapat disimpulkan bahwa KKKS dapat melakukan pekerjaan sebelum memperoleh persetujuan POD jika memenuhi kondisi dan syarat tertentu.\n\nJawaban Akhir: Memenuhi kondisi dan syarat tertentu."
+      }
+    ]
+  },
+  {
+    "conversations": [
+      {
+        "from": "human",
+        "value": "Apa saja kegiatan yang dapat dilakukan oleh KKKS sebelum memperoleh persetujuan POD?"
+      },
+      {
+        "from": "gpt",
+        "value": "Langkah Penalaran:\n1. 1. Konteks membahas tentang syarat dan kondisi yang harus dipenuhi oleh KKKS sebelum melakukan pekerjaan.\n2. 2. Dalam konteks tersebut, disebutkan bahwa kegiatan berupa pengeboran dan/atau kegiatan Fasilitas Produksi dapat dilakukan oleh KKKS sebelum memperoleh persetujuan POD.\n3. 3. Oleh karena itu, dapat disimpulkan bahwa kegiatan pengeboran dan/atau kegiatan Fasilitas Produksi adalah kegiatan yang dapat dilakukan oleh KKKS sebelum memperoleh persetujuan POD.\n\nJawaban Akhir: Pengeboran dan/atau kegiatan Fasilitas Produksi."
+      }
+    ]
+  },
+  {
+    "conversations": [
+      {
+        "from": "human",
+        "value": "Siapa yang harus menyetujui kegiatan pengeboran dan/atau kegiatan Fasilitas Produksi?"
+      },
+      {
+        "from": "gpt",
+        "value": "Langkah Penalaran:\n1. 1. Konteks membahas tentang syarat dan kondisi yang harus dipenuhi oleh KKKS sebelum melakukan pekerjaan.\n2. 2. Dalam konteks tersebut, disebutkan bahwa kegiatan pengeboran dan/atau kegiatan Fasilitas Produksi harus disetujui oleh Deputi yang membidangi perencanaan di SKK Migas.\n3. 3. Oleh karena itu, dapat disimpulkan bahwa Deputi yang membidangi perencanaan di SKK Migas harus menyetujui kegiatan pengeboran dan/atau kegiatan Fasilitas Produksi.\n\nJawaban Akhir: Deputi yang membidangi perencanaan di SKK Migas."
+      }
+    ]
+  },
+  {
+    "conversations": [
+      {
+        "from": "human",
+        "value": "Apa yang harus dilakukan oleh KKKS setelah memperoleh persetujuan POD?"
+      },
+      {
+        "from": "gpt",
+        "value": "Langkah Penalaran:\n1. 1. Konteks membahas tentang proses persetujuan POD.\n2. 2. Dalam konteks tersebut, disebutkan bahwa setelah adanya persetujuan POD, KKKS tetap wajib memperoleh persetujuan POD Selanjutnya atas pekerjaan tersebut.\n3. 3. Oleh karena itu, dapat disimpulkan bahwa KKKS harus memperoleh persetujuan POD Selanjutnya atas pekerjaan tersebut setelah memperoleh persetujuan POD.\n\nJawaban Akhir: Memperoleh persetujuan POD Selanjutnya."
+      }
+    ]
+  }
+]

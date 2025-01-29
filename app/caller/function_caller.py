@@ -3,7 +3,6 @@ from typing import Any, Dict, List, Optional
 import logging
 from app.services.tool_executor import ToolCallExtractor
 from app.services.message_preparer import MessagePreparer
-from app.handlers.response_handler import ResponseHandler
 from app.utils.message_utils import extract_tool_calls, call_function, function_registry
 from app.utils.exceptions import ToolExecutionError
 
@@ -30,7 +29,7 @@ class FunctionCaller:
         self.tools = tools
         self.message_preparer = MessagePreparer()
         # self.tool_executor =  ToolCallExtractor(tools=tools)
-        self.response_handler = ResponseHandler()
+        # self.response_handler = ResponseHandler()
 
     async def execute(
         self, 

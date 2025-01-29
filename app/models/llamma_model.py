@@ -1,6 +1,8 @@
 # app/models/llamma_model.py
+import os
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 from app.models.base_model import BaseModel
-from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
+from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer, BitsAndBytesConfig
 from typing import List, Dict, Any, Optional
 import torch
 import logging
@@ -12,7 +14,9 @@ import asyncio
 from fastapi import HTTPException
 
 from app.handlers.context_handler import ContextPreparer
+from ..utils.tracker import *
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class llammaModel(BaseModel):
@@ -20,41 +24,75 @@ class llammaModel(BaseModel):
     Implementation for llamma Instruct model.
     """
     
-    def __init__(self, model_path: str, device: str, dtype=torch.float16, system_prompt:str=None, quantization: Optional[str] = None):
-        super().__init__(model_path, device, system_prompt=system_prompt, dtype=dtype, quantization=quantization)   
+    def __init__(self, model_path: str, device: str, dtype=torch.float16, system_prompt:str=None, quantization: Optional[str] = None, cot:bool = False):
+        super().__init__(model_path, device, system_prompt=system_prompt, dtype=dtype, quantization=quantization, cot=cot)   
+
+        
+
+        # Restrict `device_map="auto"` to only allowed GPUs
+        if device == "auto":
+            # self.allowed_gpus = ['cuda:4', 'cuda:5', 'cuda:6']
+            # cuda_indices = ",".join([gpu.split(":")[-1] for gpu in self.allowed_gpus])
+            # os.environ["CUDA_VISIBLE_DEVICES"] = cuda_indices  # Restrict auto to selected GPUs
+            self.device_map = "auto"  # Set proper device_map
+        else:
+            # self.device = torch.device(device)
+            self.device_map = {"": device}  # Explicit GPU assignment
+            print(f"Using specified device: {self.device}")
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
         self.model = self.load_model()
+
     def load_model(self):
         # Check quantization type and load the model accordingly
+        logger.info(f"Quantization: {self.quantization}")
         if self.quantization == "4bit":
+            nf4_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_use_double_quant=True,
+                bnb_4bit_compute_dtype=torch.bfloat16
+                )
+            logger.info(f"Loading {self.model_path} model with 4-bit quantization")
             model = AutoModelForCausalLM.from_pretrained(
                 self.model_path,
-                torch_dtype=torch.float16 if self.dtype == "float16" else torch.float32,
-                device_map="auto",
-                load_in_4bit=True
+                quantization_config=nf4_config,
+                device_map=self.device_map  # Assign model to specific GPU
             )
         elif self.quantization == "8bit":
             model = AutoModelForCausalLM.from_pretrained(
                 self.model_path,
                 torch_dtype=torch.float16 if self.dtype == "float16" else torch.float32,
-                device_map="auto",
+                device_map=self.device_map,
                 load_in_8bit=True
             )
         else:
-            model = AutoModelForCausalLM.from_pretrained(
-                self.model_path,
-                torch_dtype=torch.float16 if self.dtype == "float16" else torch.float32,
-                device_map="auto"
-            )
-        logger.info(f"Loaded {self.model_path} model on {self.device}")
+            # Full-precision model, manually move to the specified device
+        
+            logger.info(f"Loading {self.model_path} model in FP16/FP32")
+            
+            if self.device_map == "auto":
+                # do not call .to("auto"), let HF handle distribution
+                model = AutoModelForCausalLM.from_pretrained(
+                    self.model_path,
+                    torch_dtype=torch.float16 if self.dtype == "float16" else torch.float32,
+                    device_map="auto"
+                )
+            else:
+                model = AutoModelForCausalLM.from_pretrained(
+                    self.model_path,
+                    torch_dtype=torch.float16
+                ).to(self.device)
+
+        logger.info(f"Loaded {self.model_path} model on {self.device_map}")
         return model
         self.model = AutoModelForCausalLM.from_pretrained(
             model_path, 
             torch_dtype=dtype
         ).to(device)
         logger.info(f"Loaded {model_path} model on {device}")
-    
+        
+    @log_processing_time
     async def generate_function_call(self, messages: List[Dict[str, str]], tools: List[Any]) -> str:
         # Implement llamma-specific function call generation
         # This could involve specific preprocessing or postprocessing
@@ -65,14 +103,28 @@ class llammaModel(BaseModel):
             return_dict=True,
             return_tensors="pt"
         )
-        inputs = {k: v.to(self.device) for k, v in inputs.items()}
-        output = self.model.generate(
-            **inputs,
-            max_new_tokens=128
-        )
-        response = self.tokenizer.decode(output[0][len(inputs["input_ids"][0]):])
-        logger.info(f"llamma generated function call: {response}")
-        return response
+        # inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        if self.device_map == "auto":
+            # Leave on CPU
+            inputs = inputs
+        else:
+            # Move to a specific GPU or CPU
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        try:
+            with torch.no_grad():
+                output = self.model.generate(
+                **inputs,
+                max_new_tokens=128
+                )
+            response = self.tokenizer.decode(output[0][len(inputs["input_ids"][0]):])
+            logger.info(f"llamma generated function call: {response}")
+            return response
+        finally:
+            del inputs, output
+            gc.collect()
+            torch.cuda.empty_cache()
+        
+        
     
     async def generate_text_stream(
         self, 
@@ -108,7 +160,7 @@ class llammaModel(BaseModel):
             context_preparer = ContextPreparer()
             context_str = context_preparer.prepare_context(context)
 
-            logger.info(f"context_Str: {context_str}")
+            log_partial_message(f"context_Str: {context_str}")
 
             # Prepare the user message with constraints and instructions
             user_message = f"""
@@ -182,7 +234,7 @@ class llammaModel(BaseModel):
                 # {"role": "system", "content": f"Context Information: {context}"},
                 {"role": "user", "content": user_message}
             ]
-            logger.info(f"Generating text for messages: {messages}")
+            # logger.info(f"Generating text for messages: {messages}")
 
             # Prepare inputs using tokenizer
             input_ids = self.tokenizer.apply_chat_template(
@@ -191,7 +243,13 @@ class llammaModel(BaseModel):
                 return_tensors="pt", 
                 return_dict=True
             )
-            inputs = {k: v.to(self.device) for k, v in input_ids.items()}
+            if self.device_map == "auto":
+                # Leave on CPU
+                inputs = input_ids
+            else:
+                # Move to a specific GPU or CPU
+                inputs = {k: v.to(self.device) for k, v in input_ids.items()}
+
             streamer = TextIteratorStreamer(
                 self.tokenizer, 
                 skip_prompt=True, 
@@ -215,7 +273,7 @@ class llammaModel(BaseModel):
                 kwargs=generation_kwargs
             )
             generation_thread.start()
-            logger.debug(f"Started generation thread on {self.device}")
+            logger.debug(f"Started generation thread on {self.device_map}")
 
             loop = asyncio.get_event_loop()
 
@@ -277,11 +335,17 @@ class llammaModel(BaseModel):
             logger.error(f"Generation error: {e}")
             raise HTTPException(500, f"Generation error: {e}")
         
-    
+    @log_processing_time
     async def generate_text(self, messages: List[Dict[str, str]], max_new_tokens: int) -> str:
        
         input_ids = self.tokenizer.apply_chat_template(messages,add_generation_prompt=True, return_dict=True, return_tensors="pt")
-        inputs = {k: v.to(self.device) for k, v in input_ids.items()}
+        # inputs = {k: v.to(self.device) for k, v in input_ids.items()}
+        if self.device_map == "auto":
+            # Leave on CPU
+            inputs = input_ids
+        else:
+            # Move to a specific GPU or CPU
+            inputs = {k: v.to(self.device) for k, v in input_ids.items()}
         try:
             with torch.no_grad():
                 output = self.model.generate(
@@ -293,8 +357,8 @@ class llammaModel(BaseModel):
                     # pad_token_id=self.tokenizer.eos_token_id
                 )
             generated_response = self.tokenizer.decode(output[0][len(inputs["input_ids"][0]):]).strip().replace('<|eot_id|>', '')
-       
-            logger.info(f"llamma generated text: {generated_response}")
+            
+            # logger.info(f"llamma generated text: {generated_response}")
             return generated_response
         finally:
             del input_ids

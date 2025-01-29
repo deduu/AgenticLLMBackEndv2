@@ -1,0 +1,50 @@
+[
+  {
+    "conversations": [
+      {
+        "from": "human",
+        "value": "Apa yang menandakan perubahan status WK dari periode Eksplorasi menjadi periode Eksploitasi?"
+      },
+      {
+        "from": "gpt",
+        "value": "Langkah Penalaran:\n1. 1. Perubahan status WK dari periode Eksplorasi menjadi periode Eksploitasi menandakan persetujuan POD I.\n2. 2. Oleh karena itu, persetujuan POD I menandakan perubahan status WK tersebut.\n\nJawaban Akhir: Persetujuan POD I"
+      }
+    ]
+  },
+  {
+    "conversations": [
+      {
+        "from": "human",
+        "value": "Siapa yang menetapkan POD II dan Seterusnya?"
+      },
+      {
+        "from": "gpt",
+        "value": "Langkah Penalaran:\n1. 1. POD II dan Seterusnya merupakan rencana pengembangan lapangan kedua, ketiga, dan berikutnya di dalam suatu WK Eksploitasi.\n2. 2. Oleh karena itu, Kepala SKK Migas menetapkan POD II dan Seterusnya.\n\nJawaban Akhir: Kepala SKK Migas"
+      }
+    ]
+  },
+  {
+    "conversations": [
+      {
+        "from": "human",
+        "value": "Siapa yang menetapkan POD Bertahap?"
+      },
+      {
+        "from": "gpt",
+        "value": "Langkah Penalaran:\n1. 1. POD Bertahap dimungkinkan juga integrasi dengan lapangan lain dengan mengutamakan keuntungan yang optimal bagi Negara.\n2. 2. Oleh karena itu, Kepala SKK Migas menetapkan POD Bertahap.\n\nJawaban Akhir: Kepala SKK Migas"
+      }
+    ]
+  },
+  {
+    "conversations": [
+      {
+        "from": "human",
+        "value": "Siapa yang menetapkan OPL?"
+      },
+      {
+        "from": "gpt",
+        "value": "Langkah Penalaran:\n1. 1. Dalam hal dipandang perlu penambahan minor fasilitas yang belum ada dalam persetujuan sebelumnya (existing facilities), maka dapat diajukan usulan fasilitas produksi yang diperlukan.\n2. 2. Oleh karena itu, Deputi yang membidangi Perencanaan menetapkan OPL.\n\nJawaban Akhir: Deputi yang membidangi Perencanaan"
+      }
+    ]
+  }
+]

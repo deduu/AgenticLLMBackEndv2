@@ -7,19 +7,17 @@ import logging
 from app.utils.message_utils import function_registry
 from app.caller.function_caller import FunctionCaller
 from app.crud.employee import initialize_employee_database_sessions
-from app.config_loader import load_config
+from app.crud.economic_fdi import initialize_fdi_database_sessions
+from app.config_loader import load_model_configs
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 load_dotenv()  # Load environment variables from .env
 
-MODEL_PATH = "Qwen/QwQ-32B-Preview"
-NUM_INSTANCES = int(os.getenv("NUM_INSTANCES", torch.cuda.device_count() or 1))
-logger.info(f"Model: {MODEL_PATH}")
 config_path = "./config.yaml"
-model_configs = load_config(config_path)
-print(f"Model configs: {model_configs}")
+medium_model_configs =  load_model_configs(config_path, "medium")
+print(f"Medium model configs: {medium_model_configs}")
 
-model_pool = ParallelModelPool(model_configs=model_configs, num_instances=1)
+model_pool = ParallelModelPool(model_configs=medium_model_configs, num_instances=1)
 
 
 
@@ -31,10 +29,12 @@ async def main():
     messages and available tools. Finally, it prints the response.
     """
     await initialize_employee_database_sessions()
+    await initialize_fdi_database_sessions()
     function_caller = FunctionCaller(llm = model_pool, tools = function_registry.values())
     # print(f"Messages: {messages}")
     # print(get_current_date)
-    response = await function_caller.execute("what is the average age of employees in the company?")
+    # response = await function_caller.execute("what are the trends in FDI in Indonesia across sectors from ASEAN countries between 2010 and 2023?")
+    response = await function_caller.execute("which country has the biggest contributor in FDI in Indonesia across sectors from ASEAN countries between 2020 and 2024?")
     print(response)
 
 if __name__ == "__main__":

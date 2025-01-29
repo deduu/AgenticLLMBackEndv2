@@ -8,17 +8,17 @@ from fastapi import HTTPException
 from app.utils.system_prompt import agentic_prompt
 from app.handlers.context_handler import ContextPreparer
 from app.services.message_preparer import MessagePreparer
-from app.handlers.response_handler import ResponseHandler
 
 from .llamma_model import llammaModel
 from .qwen_model import QwenModel
+from .deepseek_model import deepSeekLlamaModel
 
 # from app.managers.generation_manager import GenerationManager
 # from app.managers.tool_manager import ToolManager
 from ..models.model_factory import ModelFactory
 from ..managers.tool_manager_factory import ToolManagerFactory
 from ..managers.base_tool_manager import BaseToolManager
-from ..handlers.response_handler_factory import ResponseHandlerFactory
+from app.handlers.response.response_handler_factory import ResponseHandlerFactory
 
 # Configure logging
 logging.basicConfig(
@@ -52,6 +52,7 @@ class ParallelModelPool():
         self.model_instances = []
         self.tool_managers = {}
         self.response_handler = {}
+        self.models_by_type = {}  #
         
         # Create model instances based on configurations
         for config in model_configs:
@@ -61,13 +62,20 @@ class ParallelModelPool():
                 continue
             
             try:
+                logger.info(f"model_type: {model_type}")
                 model = ModelFactory.create_model(model_type, config)
+                logger.info(f"model_type: {model}")
                 model_instance = {
                     "model": model,
                     "device": config["device"]
                 }
                 self.model_instances.append(model_instance)
                 self.queue.put_nowait(model_instance)
+
+                # Store the model by type
+                if model_type not in self.models_by_type:
+                    self.models_by_type[model_type] = []
+                self.models_by_type[model_type].append(model_instance)
                 
                 # Assign response handler
                 self.response_handler[id(model_instance)] = ResponseHandlerFactory.get_response_handler(model_type)
@@ -77,11 +85,17 @@ class ParallelModelPool():
                 logger.info(f"model: {self.tool_managers[id(model_instance)]}")
                 logger.info(f"Loaded and enqueued {config.get('model_path')} model on {config['device']}")
             except Exception as e:
-                logger.error(f"Failed to load model {config.get('model_path')} of type {model_type}: {e}")
+                logger.exception(f"Failed to load model {config.get('model_path')} of type {model_type}: {e}")
         
         # Initialize the generation and tool managers if needed
         # Depending on whether they are model-specific or not
-
+    async def get_model_by_type(self, model_type: str) -> Dict[str, Any]:
+        """
+        Retrieve a specific model instance by type.
+        """
+        if model_type in self.models_by_type and self.models_by_type[model_type]:
+            return self.models_by_type[model_type][0]  # Get the first available model
+        raise ValueError(f"No available model of type: {model_type}")
     @property
     def device(self):
         return "pool"
@@ -124,13 +138,16 @@ class ParallelModelPool():
                 # Qwen-specific handling
                 return await model.generate_function_call(messages, tools)
             elif isinstance(model, llammaModel):
-                # Gemini-specific handling
+                # llamma-specific handling
+                return await model.generate_function_call(messages, tools)
+            elif isinstance(model, deepSeekLlamaModel):
+                # deepseekLlama-specific handling
                 return await model.generate_function_call(messages, tools)
             else:
                 raise ValueError("Unsupported model type")
         finally:
             await self.release_model(model_instance)
-    
+ 
     async def generate_text_stream(
         self,
         query: str,
@@ -162,6 +179,18 @@ class ParallelModelPool():
                 async for chunk in model.generate_text_stream(
                     query=query,
                     context=context,
+                    history_messages=history_messages,
+                    max_new_tokens=max_new_tokens,
+                    temperature=temperature,
+                    top_p=top_p
+                ):
+                    yield chunk
+            elif isinstance(model, deepSeekLlamaModel):
+                # deepseekLlama-specific streaming
+                async for chunk in model.generate_text_stream(
+                    query=query,
+                    context=context,
+                    history_messages=history_messages,
                     max_new_tokens=max_new_tokens,
                     temperature=temperature,
                     top_p=top_p
@@ -186,6 +215,8 @@ class ParallelModelPool():
             if isinstance(model, QwenModel):
                 return await model.generate_text(messages, max_new_tokens)
             elif isinstance(model, llammaModel):
+                return await model.generate_text(messages, max_new_tokens)
+            elif isinstance(model, deepSeekLlamaModel):
                 return await model.generate_text(messages, max_new_tokens)
             else:
                 raise ValueError("Unsupported model type")
@@ -280,7 +311,7 @@ class ParallelModelPool():
     
         # 4. Generate final response after tool calls
         try:
-            final_response = await self.generate(messages, max_new_tokens=512)
+            final_response = await self.generate_text(messages, max_new_tokens=512)
         except Exception as e:
             logger.error(f"Error generating final response: {e}")
             raise
