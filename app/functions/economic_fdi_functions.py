@@ -46,10 +46,10 @@ def extract_years(query_type, arguments):
         filtered_arguments = arguments.copy()
         filtered_arguments.pop('chart_type', None)  # Remove 'chart_type' if it exists. None prevents KeyError
         return filtered_arguments
+    elif query_type == 'total_fdi_value_by_sector':  # Add this specific check
+        return ""  # Return None for this query type
     else:
-        filtered_arguments = arguments.copy()
-        filtered_arguments.pop('chart_type', None)  # Remove 'chart_type' if it exists. None prevents KeyError
-        return filtered_arguments # Return None if the query type is not a match
+        return "" # or filtered_arguments if you intend to use it. I recommend None for consistency.
 
     
 async def get_query_economic_data(
@@ -123,6 +123,8 @@ async def get_query_economic_data(
     logger.info(f"parameters: {parameters}")
     parameters = extract_years(query_type, parameters)
 
+    logger.info(f"parameters processed: {parameters}")
+
 
     async with get_session(db_identifier) as db:
         try:
@@ -135,31 +137,32 @@ async def get_query_economic_data(
                 except json.JSONDecodeError:
                     logger.error(f"Failed to parse 'countries': {parameters['countries']}")
                     raise ValueError("'countries' parameter must be a JSON-serializable list.")
-            # Initialize EconomicTool with the current database session and parameters
-            economic_tool = EconomicTool(db, query_type, parameters)
-            query_result = await economic_tool.execute()
-            logger.info(f"query_result_1: {query_result}")
-
-            if query_result is None:
-                logger.warning(f"No data returned for query_type: {query_type}")
-                return None
-
-            # Define which query_types are visualizable
-            visualizable_queries = {
-                "total_fdi_value_by_country",
-                 "total_fdi_value_by_sector"
-            }
-            if query_type in visualizable_queries:
-                # Generate chart configuration
-                chart_config = await generate_chart_config(
-                    query_type=query_type,
-                    query_result=query_result,
-                    chart_type=chart_type,
-                )
-                return chart_config
             else:
-                logger.info(f"query_result : {query_result}")
-                return query_result
+                # Initialize EconomicTool with the current database session and parameters
+                economic_tool = EconomicTool(db, query_type, parameters)
+                query_result = await economic_tool.execute()
+                logger.info(f"query_result_1: {query_result}")
+
+                if query_result is None:
+                    logger.warning(f"No data returned for query_type: {query_type}")
+                    return None
+
+                # Define which query_types are visualizable
+                visualizable_queries = {
+                    "total_fdi_value_by_country",
+                    "total_fdi_value_by_sector"
+                }
+                if query_type in visualizable_queries:
+                    # Generate chart configuration
+                    chart_config = await generate_chart_config(
+                        query_type=query_type,
+                        query_result=query_result,
+                        chart_type=chart_type,
+                    )
+                    return chart_config
+                else:
+                    logger.info(f"query_result : {query_result}")
+                    return query_result
         except ValueError as ve:
             logger.error(f"ValueError in get_query_economic_data: {ve}")
             return None

@@ -1,32 +1,9 @@
-# app/models/parallel_model_pool.py
+from app.utils.message_utils import function_registry
+# from app.caller.function_caller import FunctionCaller
+from app.models.parallel_model_pool import ParallelModelPool
+from app.config_loader import load_model_configs
 import asyncio
-import torch
-import logging
-from typing import List, Optional, Dict, Any, Tuple
-from fastapi import HTTPException
 
-from app.utils.system_prompt import agentic_prompt
-from app.handlers.context_handler import ContextPreparer
-from app.services.message_preparer import MessagePreparer
-
-from .llamma_model import llammaModel
-from .qwen_model import QwenModel
-from .deepseek_model import deepSeekLlamaModel
-
-# from app.managers.generation_manager import GenerationManager
-# from app.managers.tool_manager import ToolManager
-from ..models.model_factory import ModelFactory
-from ..managers.tool_manager_factory import ToolManagerFactory
-from ..managers.base_tool_manager import BaseToolManager
-from app.handlers.response.response_handler_factory import ResponseHandlerFactory
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,  # Set the logging level to INFO
-    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',  # Define the log message format
-    datefmt='%Y-%m-%d %H:%M:%S',  # Define the date format
-)
-logger = logging.getLogger(__name__)
 
 class ParallelModelPool():
     """
@@ -58,13 +35,13 @@ class ParallelModelPool():
         for config in model_configs:
             model_type = config.get("model_type")
             if not model_type:
-                logger.error("Model configuration missing 'model_type'")
+                
                 continue
             
             try:
-                logger.info(f"model_type: {model_type}")
+              
                 model = ModelFactory.create_model(model_type, config)
-                logger.info(f"model_type: {model}")
+                
                 model_instance = {
                     "model": model,
                     "device": config["device"]
@@ -82,21 +59,10 @@ class ParallelModelPool():
 
                 # Assign tool manager
                 self.tool_managers[id(model_instance)] = ToolManagerFactory.get_tool_manager(model_type)
-                logger.info(f"model: {self.tool_managers[id(model_instance)]}")
-                logger.info(f"Loaded and enqueued {config.get('model_path')} model on {config['device']}")
+            
             except Exception as e:
-                logger.exception(f"Failed to load model {config.get('model_path')} of type {model_type}: {e}")
+                print(f"Failed to load model {config.get('model_path')} of type {model_type}: {e}")
         
-        # Initialize the generation and tool managers if needed
-        # Depending on whether they are model-specific or not
-    async def get_model_by_type(self, model_type: str) -> Dict[str, Any]:
-        """
-        Retrieve a specific model instance by type.
-        """
-        if model_type in self.models_by_type and self.models_by_type[model_type]:
-            return self.models_by_type[model_type][0]  # Get the first available model
-        raise ValueError(f"No available model of type: {model_type}")
-    
     @property
     def device(self):
         return "pool"
@@ -108,10 +74,10 @@ class ParallelModelPool():
         """
         try:
             model_instance = await asyncio.wait_for(self.queue.get(), timeout=timeout)
-            logger.debug(f"Acquired model on {model_instance['device']}")
+            print(f"Acquired model on {model_instance['device']}")
             return model_instance
         except asyncio.TimeoutError:
-            logger.warning("No model instances available and timeout reached.")
+            print("No model instances available and timeout reached.")
             raise HTTPException(
                 status_code=503,
                 detail="No model instances available. Please try again later."
@@ -122,7 +88,7 @@ class ParallelModelPool():
         Releases a model instance back into the queue.
         """
         await self.queue.put(model_instance)
-        logger.debug(f"Released model on {model_instance['device']} back to queue")
+        print(f"Released model on {model_instance['device']} back to queue")
     
     async def generate_function_call(
         self,
@@ -144,59 +110,6 @@ class ParallelModelPool():
             elif isinstance(model, deepSeekLlamaModel):
                 # deepseekLlama-specific handling
                 return await model.generate_function_call(messages, tools)
-            else:
-                raise ValueError("Unsupported model type")
-        finally:
-            await self.release_model(model_instance)
- 
-    async def generate_text_stream(
-        self,
-        query: str,
-        context: Any,
-        history_messages: Optional[List[Dict]] = None,
-        max_new_tokens: int = 1024,
-        temperature: float = 0.7,
-        top_p: float = 0.9,
-        timeout: Optional[float] = None
-    ):
-        """
-        Stream-generated text from the model in chunks (SSE or similar).
-        """
-        model_instance = await self.get_free_model(timeout=timeout)
-        try:
-            model = model_instance["model"]
-            if isinstance(model, QwenModel):
-                # Qwen-specific streaming
-                async for chunk in model.generate_text_stream(
-                    query=query,
-                    context=context,
-                    max_new_tokens=max_new_tokens,
-                    temperature=temperature,
-                    top_p=top_p
-                ):
-                    yield chunk
-            elif isinstance(model, llammaModel):
-                # Gemini-specific streaming
-                async for chunk in model.generate_text_stream(
-                    query=query,
-                    context=context,
-                    history_messages=history_messages,
-                    max_new_tokens=max_new_tokens,
-                    temperature=temperature,
-                    top_p=top_p
-                ):
-                    yield chunk
-            elif isinstance(model, deepSeekLlamaModel):
-                # deepseekLlama-specific streaming
-                async for chunk in model.generate_text_stream(
-                    query=query,
-                    context=context,
-                    history_messages=history_messages,
-                    max_new_tokens=max_new_tokens,
-                    temperature=temperature,
-                    top_p=top_p
-                ):
-                    yield chunk
             else:
                 raise ValueError("Unsupported model type")
         finally:
@@ -312,7 +225,7 @@ class ParallelModelPool():
     
         # 4. Generate final response after tool calls
         try:
-            final_response = await self.generate(messages, max_new_tokens=512)
+            final_response = await self.generate_text(messages, max_new_tokens=512)
         except Exception as e:
             logger.error(f"Error generating final response: {e}")
             raise
@@ -326,3 +239,82 @@ class ParallelModelPool():
         logger.info(f"Final tool_response: {tool_response}")
     
         return tool_response
+
+
+from typing import Any, Dict, List, Optional
+
+
+class MessagePreparer:
+    def __init__(self, tool_prompt: Optional[str] = None):
+        
+        self.default_tool_prompt = tool_prompt if tool_prompt else "You are an expert assistant equipped with advanced tool-calling capabilities."
+
+    def prepare_messages(
+        self, 
+        subquery: str, 
+        system_prompt: Optional[str] = None
+    ) -> List[Dict[str, str]]:
+        tool_calling_prompt = system_prompt if system_prompt else self.default_tool_prompt
+        messages = [{"role": "system", "content": tool_calling_prompt}]
+        
+        if subquery:
+            messages.append({"role": "user", "content": subquery})
+        
+        return messages
+
+
+class FunctionCaller:
+    def __init__(self, llm: ParallelModelPool, tools: List[Any]):
+        """
+        Initialize the FunctionCaller with an LLM instance and available tools.
+
+        :param llm: The language model instance to use for processing queries.
+        :param tools: A list of tool instances that can be called by the LLM.
+        """
+        self.llm = llm
+        self.tools = tools
+        self.message_preparer = MessagePreparer()
+        # self.tool_executor =  ToolCallExtractor(tools=tools)
+        # self.response_handler = ResponseHandler()
+
+    async def execute(
+        self, 
+        subquery: str, 
+        system_prompt: Optional[str] = None
+    ) -> str:
+        """
+        Execute the user query using the LLM and available tools.
+
+        :param subquery: The user's query or subquery.
+        :param tools: The list of tools available for the LLM to call.
+        :param system_prompt: An optional system prompt to override the default.
+        :return: The final response from the LLM after processing.
+        """
+        messages = self.message_preparer.prepare_messages(subquery, system_prompt)
+        # logger.info(f"Messages: {messages}")
+        return await self.llm.process_user_query(messages = messages, tools= self.tools)
+
+# Load llm model
+config_path = "./config.yaml"
+medium_model_configs =  load_model_configs(config_path, "medium")
+print(f"Medium model configs: {medium_model_configs}")
+model_pool = ParallelModelPool(model_configs=medium_model_configs, num_instances=1)
+
+
+async def main():
+    """
+    Main function for the application.
+
+    This function calls the model pool to generate a response based on the provided 
+    messages and available tools. Finally, it prints the response.
+    """
+    function_caller = FunctionCaller(llm = model_pool, tools = function_registry.values())
+    # print(f"Messages: {messages}")
+    # print(get_current_date)
+    # response = await function_caller.execute("what are the trends in FDI in Indonesia across sectors from ASEAN countries between 2010 and 2023?")
+    response = await function_caller.execute("which country has the biggest contributor in FDI in Indonesia across sectors from ASEAN countries between 2020 and 2024?")
+    print(response)
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())  # Run the main function asynchronously

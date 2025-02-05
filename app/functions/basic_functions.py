@@ -30,3 +30,15 @@ async def get_current_date() -> str:
     return {
         "current_date": current_date
     }
+
+# def get_current_date() -> str:
+#     """
+#     Get current date.
+    
+#     Input format:
+#     {
+#         "name": "string",
+#         "parameters": {}
+#     }
+#     """
+#     return datetime.now().strftime("%Y-%m-%d")

@@ -838,26 +838,5 @@ print(answer)
 # print(answer)
 
 
-import torch
-from transformers import pipeline
 
-model_id = "meta-llama/Llama-3.2-1B-Instruct"
-pipe = pipeline(
-    "text-generation",
-    model=model_id,
-    torch_dtype=torch.bfloat16,
-    device_map="auto",
-)
-
-text="I'm going through some things with my feelings and myself. I barely sleep and I do nothing but think about how I'm worthless and how I shouldn't be here. I've never tried or contemplated suicide. I've always wanted to fix my issues, but I never get around to it. How can I change my feeling of being worthless to everyone?"
-
-messages = [
-    {"role": "system", "content": "You are a helpful assistant."},
-    {"role": "user", "content": text},
-]
-outputs = pipe(
-    messages,
-    max_new_tokens=512,
-)
-print(outputs[0]["generated_text"][-1])
-
+            

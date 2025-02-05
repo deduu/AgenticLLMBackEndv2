@@ -114,7 +114,7 @@ class llammaModel(BaseModel):
             with torch.no_grad():
                 output = self.model.generate(
                 **inputs,
-                max_new_tokens=128
+                max_new_tokens=1024
                 )
             response = self.tokenizer.decode(output[0][len(inputs["input_ids"][0]):])
             logger.info(f"llamma generated function call: {response}")

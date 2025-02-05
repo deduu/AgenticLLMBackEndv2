@@ -77,7 +77,7 @@ class Agentic:
          # Get 'llamma_small' model instance
         # llm_small = await self.llm.get_model_by_type("llamma_small")
         # logger.info(f"llm_small: {llm_small}")
-        subqueries = await self.small_llm.generate(messages=messages, max_new_tokens=512)
+        subqueries = await self.medium_llm.generate(messages=messages, max_new_tokens=512)
         logger.info(f"Generated subqueries: {subqueries}")
         return subqueries
         subqueries = await self.llm.generate(

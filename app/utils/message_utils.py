@@ -48,8 +48,23 @@ def extract_tool_calls(input_string: str) -> List[Dict[str, str]]:
     """
     Wrapper function for backward compatibility.
     """
+    valid_tool_calls = []
     extractor = ToolCallExtractor()
-    return extractor.extract_tool_calls(input_string)
+    tool_calls = extractor.extract_tool_calls(input_string)
+    print(f"Extracted tool calls now: {json.dumps(tool_calls, indent=2)}")
+    for tool_call in tool_calls:
+        is_valid, transformed_data, errors = extractor.validate_and_transform_tool_call(tool_call)
+        print(f"\nTool Call: {tool_call['name']}")
+        print(f"Valid: {is_valid}")
+        if transformed_data:
+            print(f"Transformed data: {json.dumps(transformed_data, indent=2)}")
+            valid_tool_calls.append(transformed_data)
+        if errors:
+            print("Messages:")
+            for error in errors:
+                print(f"- {error}")
+    print(f"Revised tool calls now: {json.dumps(valid_tool_calls, indent=2)}")
+    return valid_tool_calls
 
 # Register your functions in a dictionary
 function_registry = {

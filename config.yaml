@@ -10,16 +10,16 @@ large_models:
   #   dtype: "float16"
   #   quantization: "4bit"  # Load with 4-bit quantization
 medium_models:
-  # - model_type: "llamma"
-  #   model_path: "meta-llama/Llama-3.3-70B-Instruct"
-  #   device: "auto"
-  #   dtype: "float16"
-  #   quantization: "4bit"  # Load with 4-bit quantization
-  - model_type: "deepseek"
-    model_path: "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
-    device: "cuda:1"
+  - model_type: "llamma"
+    model_path: "meta-llama/Llama-3.3-70B-Instruct"
+    device: "auto"
     dtype: "float16"
-    quantization: "None"  # Load with 4-bit quantization
+    quantization: "4bit"  # Load with 4-bit quantization
+  # - model_type: "deepseek"
+  #   model_path: "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
+  #   device: "cuda:1"
+  #   dtype: "float16"
+  #   quantization: "None"  # Load with 4-bit quantization
 
     
   # - model_type: "qwen"
@@ -50,7 +50,7 @@ small_models:
     device: "cuda:4"
     dtype: "float16"
     parameter: "8B"
-    quantization: "4bit"
+    quantization: "None"
     cot: "False"
 
 
