@@ -53,7 +53,7 @@ def extract_tool_calls(input_string: str) -> List[Dict[str, str]]:
     tool_calls = extractor.extract_tool_calls(input_string)
     print(f"Extracted tool calls now: {json.dumps(tool_calls, indent=2)}")
     for tool_call in tool_calls:
-        is_valid, transformed_data, errors = extractor.validate_and_transform_tool_call(tool_call)
+        is_valid, transformed_data, errors = extractor.validate_and_transform_tool_call(tool_call) # check if the generated docstring match the predefined doctstring
         print(f"\nTool Call: {tool_call['name']}")
         print(f"Valid: {is_valid}")
         if transformed_data:

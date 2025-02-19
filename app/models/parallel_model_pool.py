@@ -205,7 +205,7 @@ class ParallelModelPool():
     async def generate(
         self,
         messages: List[Dict[str, str]],
-        max_new_tokens: int = 128
+        max_new_tokens: int =1024
     ) -> str:
         """
         Generate a standard text response (non-streaming).

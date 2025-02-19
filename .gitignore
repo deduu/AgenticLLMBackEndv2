@@ -7,3 +7,5 @@ finetuning/
 user_data/
 testCoTDataGen.py
 test*.py
+*.csv
+dataset_gen.py

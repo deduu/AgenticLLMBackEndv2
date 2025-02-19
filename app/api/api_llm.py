@@ -65,10 +65,10 @@ async def llamma_llm_stream(request: Request, body: LLMRequest):
     if body.model == "local_agentic_model" and body.collections:
         logger.info("Agentic initiating...")
         function_call_only_flag = False
-        # Try to understand the query
+        # Try to understand the query, generate query with dependency context
         subqueries = await agentic_system.understand(body)
         
-        # Process the subqueries
+        # Process the subqueries with dependency context
         retrieved_sources = await agentic_system.process(subqueries, body)
 
     if function_call_only_flag and body.model == "local_model" and body.function_call:
